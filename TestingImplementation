@@ -1,0 +1,91 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+%matplotlib inline
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import train_test_split, cross_val_predict, cross_val_score
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsOneClassifier
+from sklearn.preprocessing import LabelEncoder
+from sklearn.svm import SVC
+from google.colab import drive
+
+# Access files in your Google Drive
+drive.mount('/content/drive')
+
+# Load your dataset (replace 'your_dataset.csv' with the actual dataset file)
+data = pd.read_csv('/content/drive/My Drive/OULAD/studentInfo.csv')
+
+# Assuming your dataset has features (X) and labels (y)
+X = data.drop('final_result', axis=1)  # Replace 'target_column' with the actual label column name
+y = data['final_result']
+print(X)
+
+#Check for any null values to clean data
+null_vals = data.isnull().all(axis=1)
+null_rows = data[null_vals]
+print(null_rows)
+
+#Transform Target Column Data Into Numerical Values
+label_encoder = LabelEncoder()
+y_encoded = label_encoder.fit_transform(y)
+label_mapping = dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_))) #for testing if done correctly
+
+#Transform All Other Categorical Data Into Numerical Values
+encoded_data = X.copy()
+X_encoding = encoded_data[['code_module','code_presentation','gender','region','highest_education','imd_band','age_band','disability']].apply(LabelEncoder().fit_transform)
+
+#Merge back the label encoded columns to the rest of the dataset
+X_encoded = pd.concat([X['id_student'], X_encoding, X['studied_credits'], X['num_of_prev_attempts']], axis=1)
+
+#PRINTING TO CHECK IF DATA TRANSFORMATION WAS SUCCESSFUL
+#print(X_encoded, "\n")
+print("\nNumeric Results:\n", y_encoded)
+print("\nLabel Mapping:", label_mapping)
+
+#SOLVING CLASS IMBALANCE PROBLEM USING SMOTE 
+#Can be done as below or done using a dictionary method
+#Dictionary method allows you to specify values for the variables in the target class but the value specified must be greater than the existing value of that class
+
+fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10,6))
+idx, c=np.unique(y, return_counts=True)
+sns.barplot(x=idx, y=c, ax=ax[0])
+
+X_resampled, y_resampled = SMOTE(random_state=42).fit_resample(X_encoded, y)
+idx, c=np.unique(y_resampled, return_counts=True)
+sns.barplot(x=idx, y=c, ax=ax[1])
+plt.show()
+
+print("Origanal Sample: ", np.unique(y, return_counts=True))
+print("After Sampling using SMOTE: ", np.unique(y_resampled, return_counts=True))
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_encoded, y_encoded, test_size=0.2, random_state=42)
+#print(X_train.shape , X_test.shape)
+
+plt.figure(figsize=(10, 10))
+correlated = X_train.corr()
+sns.heatmap(correlated, annot=True, cmap=plt.cm.CMRmap)
+plt.show()
+
+#Feature Selection Using Pearson Correlation
+#My Features are not Highly Correlated, what do I do in that case?
+
+AllFeatures = X_encoded.columns
+#print("Original Features", AllFeatures)
+
+def correlation(dataset, threshold):
+  corr_columns = set()
+  corr_matrix = dataset.corr()
+  for i in range(len(corr_matrix.columns)):
+    for j in range(i):
+      if abs(corr_matrix.iloc[i, j]) > threshold:
+        colname = corr_matrix.columns[i]
+        corr_columns.add(colname)
+  return corr_columns 
+        
+cor_features = correlation(X_train, 0.1)
+len(set(cor_features))
+cor_features
